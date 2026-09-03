@@ -24,6 +24,7 @@ on:
         options:
           - plan
           - apply
+          - status
           - destroy
       deploy_robotshop:
         description: "Deploy Robot Shop Microservices (via Helm) after Apply"
@@ -148,7 +149,7 @@ jobs:
             -var-file="environments/${{ inputs.environment }}.tfvars"
 
       - name: Configure Kubeconfig & Inspect Nodes
-        if: inputs.action == 'apply'
+        if: inputs.action == 'apply' || inputs.action == 'status'
         run: |
           CLUSTER_NAME=$(terraform output -raw cluster_name)
           echo "Configuring kubectl for cluster: ${CLUSTER_NAME} in ${AWS_REGION}..."
@@ -176,6 +177,26 @@ jobs:
           kubectl -n logging rollout status statefulset/elasticsearch --timeout=5m || true
           kubectl -n logging rollout status deployment/kibana --timeout=5m || true
           kubectl -n logging get all
+
+      - name: Query & Display Public Load Balancer DNS URLs
+        if: inputs.action == 'apply' || inputs.action == 'status'
+        run: |
+          echo "=== Fetching AWS Load Balancer DNS Hostnames ==="
+          sleep 10
+          kubectl get svc -A -o wide
+
+          WEB_URL=$(kubectl get svc -n robot-shop web -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>/dev/null || echo "")
+          KIBANA_URL=$(kubectl get svc -n logging kibana -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>/dev/null || echo "")
+
+          echo ""
+          echo "================================================================================"
+          echo "🛒 INSTANA ROBOT SHOP STOREFRONT URL:"
+          echo "👉 http://${WEB_URL}:8080"
+          echo "--------------------------------------------------------------------------------"
+          echo "📊 KIBANA CENTRALIZED LOGGING DASHBOARD URL:"
+          echo "👉 http://${KIBANA_URL}:5601"
+          echo "================================================================================"
+          echo ""
 
       - name: Terraform Destroy
         if: inputs.action == 'destroy'
