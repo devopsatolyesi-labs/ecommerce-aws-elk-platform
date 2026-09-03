@@ -1,0 +1,9 @@
+aws_region          = "eu-west-1"
+environment         = "dev"
+cluster_name        = "robotshop"
+vpc_cidr            = "10.10.0.0/16"
+node_instance_types = ["t3.small"]
+desired_nodes       = 1
+max_nodes           = 2
+min_nodes           = 1
+capacity_type       = "SPOT"

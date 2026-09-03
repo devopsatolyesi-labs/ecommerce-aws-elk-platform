@@ -4,13 +4,14 @@ metadata:
   name: logging
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: elasticsearch
   namespace: logging
   labels:
     app: elasticsearch
 spec:
+  serviceName: elasticsearch
   replicas: 1
   selector:
     matchLabels:
@@ -35,6 +36,9 @@ spec:
               value: "-Xms512m -Xmx512m"
             - name: xpack.security.enabled
               value: "false"
+          volumeMounts:
+            - name: es-data
+              mountPath: /usr/share/elasticsearch/data
           resources:
             requests:
               cpu: "250m"
@@ -42,6 +46,14 @@ spec:
             limits:
               cpu: "1000m"
               memory: "1.5Gi"
+  volumeClaimTemplates:
+    - metadata:
+        name: es-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
 ---
 apiVersion: v1
 kind: Service

@@ -1,0 +1,9 @@
+aws_region          = "eu-west-1"
+environment         = "staging"
+cluster_name        = "robotshop"
+vpc_cidr            = "10.20.0.0/16"
+node_instance_types = ["t3.medium"]
+desired_nodes       = 2
+max_nodes           = 3
+min_nodes           = 1
+capacity_type       = "SPOT"

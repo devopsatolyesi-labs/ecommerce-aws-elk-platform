@@ -1,0 +1,9 @@
+aws_region          = "eu-west-1"
+environment         = "prod"
+cluster_name        = "robotshop"
+vpc_cidr            = "10.30.0.0/16"
+node_instance_types = ["t3.large"]
+desired_nodes       = 3
+max_nodes           = 5
+min_nodes           = 2
+capacity_type       = "ON_DEMAND"
