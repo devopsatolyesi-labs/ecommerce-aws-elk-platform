@@ -160,6 +160,8 @@ jobs:
         if: inputs.action == 'apply' && inputs.deploy_robotshop == true
         run: |
           echo "Deploying Robot Shop Helm Chart into EKS..."
+          # Clean legacy statefulset if spec was modified
+          kubectl -n robot-shop delete statefulset redis 2>/dev/null || true
           helm upgrade --install robot-shop ../K8s/helm/ \
             --namespace robot-shop \
             --create-namespace \
