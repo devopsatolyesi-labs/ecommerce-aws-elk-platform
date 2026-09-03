@@ -1,189 +1,219 @@
-# Instana Robot Shop — AWS Cloud Platform (EKS & ECS) with Centralized ELK Logging
+# 🛒 Instana Robot Shop — AWS Cloud Platform (EKS & ELK Stack)
 
-Bu proje, çok katmanlı mikroservis mimarisine ve çeşitli veritabanlarına (MongoDB, MySQL, Redis, RabbitMQ) sahip **Robot Shop** e-ticaret platformunu temel alır. Proje; **Terraform** ile otomatik olarak AWS üzerinde VPC, **Amazon EKS** (Kubernetes) ve **Amazon ECS** (Fargate) altyapısını kurar; tüm pod ve konteyner loglarını **Fluent Bit** ile toplayarak **Merkezi ELK Stack (Elasticsearch & Kibana)** üzerinde indeksler ve analiz eder.
+![AWS E-Commerce Platform Architecture](docs/images/aws_architecture_diagram.jpg)
 
----
+Bu proje; çok katmanlı, çok dilli (polyglot) mikroservis mimarisine ve çeşitli veritabanlarına (MongoDB, MySQL, Redis, RabbitMQ) sahip **Instana Robot Shop** e-ticaret platformunun AWS bulut ortamında üretim standartlarında ayağa kaldırılmasını sağlar. 
 
-## 📚 Dokümantasyon & Hızlı Bağlantılar
-
-* 📖 **[Master Kurulum ve Operasyon Kılavuzu (A'dan Z'ye)](docs/FULL_SETUP_AND_OPERATIONS_GUIDE.md)**: AWS Sandbox gereksinimleri, Terraform modülleri, S3 backend, GitHub Actions, Helm ve ELK kurulumu.
-* 🧪 **[Merkezi Log Analizi & Kök Neden Laboratuvarı](docs/LOG_ANALYSIS_LAB.md)**: Kibana KQL sorguları, MongoDB/Payment arıza simülasyonları ve hata ayıklama pratiği.
+Altyapı; **Terraform Modülleri** ile sıfır hata prensibiyle provizyon edilir, **DynamoDB gerektirmeyen saf S3 State Backend** kullanır, **Pluralsight AWS Sandbox** sınırlarına tam uyum sağlar ve kümedeki tüm konteyner loglarını **Fluent Bit (CRI Parser)** ile toplayıp **Merkezi ELK Stack (Elasticsearch 7.17 & Kibana)** üzerinde indeksler.
 
 ---
 
-## 🏛️ Sistem Mimarisi
+## 📑 Hızlı Bağlantılar
+* 📖 **[Master Kurulum ve Operasyon Kılavuzu (A'dan Z'ye)](docs/FULL_SETUP_AND_OPERATIONS_GUIDE.md)**: Sunucu, AWS CLI, Terraform, Helm ve ELK derinlemesine kurulum rehberi.
+* 🧪 **[Merkezi Log Analizi & Kök Neden Laboratuvarı](docs/LOG_ANALYSIS_LAB.md)**: Kibana KQL sorguları, arıza simülasyonları ve RCA alıştırmaları.
+
+---
+
+## 🏛️ Uygulama Mimarisi ve Bileşenler
 
 ```mermaid
 flowchart TD
-    subgraph IAC [Altyapı Kod Olarak - Terraform]
-        TF[Terraform CLI] -->|Tek Komutla Provision| AWS[AWS Bulut Hesabı]
+    subgraph CLIENT [Kullanıcı & Trafik]
+        USERS[Müşteri Tarayıcısı]
+        LOAD[load-gen: Python Locust Yük Üretici]
     end
 
-    subgraph AWS_VPC [AWS Multi-AZ VPC (10.0.0.0/16)]
+    subgraph AWS_INGRESS [Giriş & Yönlendirme Katmanı]
         IGW[Internet Gateway]
-        NAT[NAT Gateway]
-        
-        subgraph PUBLIC_SUBNETS [Genel Alt Ağlar]
-            ALB[Application Load Balancer]
+        ALB[AWS Load Balancer / Nginx Ingress]
+    end
+
+    subgraph EKS_CLUSTER [Amazon EKS v1.31 Kümesi]
+        WEB[web: AngularJS Frontend & Nginx Proxy]
+
+        subgraph MICROSERVICES [Mikroservis İş Mantığı]
+            USER[user: Node.js]
+            CAT[catalogue: Node.js]
+            CART[cart: Node.js]
+            PAY[payment: Python Flask]
+            SHIP[shipping: Java Spring Boot]
+            DISP[dispatch: Golang]
+            RAT[ratings: PHP]
         end
 
-        subgraph PRIVATE_SUBNETS [Özel Alt Ağlar]
-            EKS_NODES[Amazon EKS Managed Node Group\nKubernetes v1.31 / t3.medium]
-            ECS_TASKS[Amazon ECS Fargate Tasks]
+        subgraph DATA_TIER [Veri Katmanı]
+            MDB[(MongoDB\nKullanıcı & Katalog)]
+            RDS[(Redis\nSepet Oturumları)]
+            SQL[(MySQL\nSipariş & Kargo)]
+            RMQ[RabbitMQ\nSevkiyat Mesaj Kuyruğu]
+        end
+
+        subgraph OBSERVABILITY [Gözlemlenebilirlik: ELK Stack]
+            FB[Fluent Bit DaemonSet\nCRI Parser & K8s Enricher]
+            ES[(Elasticsearch 7.17 StatefulSet\nk8s-logs-* İndeksleri)]
+            KIB[Kibana 7.17 Web Dashboard\nPort 5601]
         end
     end
 
-    subgraph APP_LAYER [Robot Shop Mikroservisleri]
-        WEB[web: Nginx / AngularJS]
-        USER[user: NodeJS & MongoDB]
-        CATALOG[catalogue: NodeJS & MongoDB]
-        CART[cart: NodeJS & Redis]
-        PAYMENT[payment: Python]
-        SHIPPING[shipping: Java & MySQL]
-        DISPATCH[dispatch: Golang & RabbitMQ]
-    end
+    USERS --> IGW --> ALB --> WEB
+    LOAD --> WEB
+    WEB --> USER & CAT & CART & PAY & SHIP & RAT
+    USER --> MDB
+    CAT --> MDB
+    CART --> RDS
+    SHIP --> SQL
+    DISP --> RMQ
+    PAY --> DISP
 
-    subgraph LOGGING_LAYER [Merkezi Loglama & Gözlemlenebilirlik (ELK)]
-        FB[Fluent Bit DaemonSet\n/var/log/containers/*.log]
-        ES[(Elasticsearch 7.17\nLog İndeksleme & Arama)]
-        KIBANA[Kibana 7.17 Web UI\nLog Analizi & Dashboardlar]
-    end
-
-    AWS --> AWS_VPC
-    EKS_NODES --> APP_LAYER
-    APP_LAYER -->|Stdout / Stderr Logs| FB
-    FB -->|Parsed JSON HTTP Post| ES
-    ES --> KIBANA
-    ADMIN[SRE / DevOps Mühendisi] -->|Port 5601| KIBANA
+    %% Log Flow
+    WEB & USER & CAT & CART & PAY & SHIP & DISP & RAT -.->|Stdout/Stderr Logları| FB
+    FB -->|JSON over HTTP 9200| ES
+    ES --> KIB
 ```
+
+### 🧩 Mikroservis Ekosistemi Özeti:
+| Mikroservis | Teknoloji / Dil | Veritabanı / Bağımlılık | Görevi |
+| :--- | :--- | :--- | :--- |
+| **web** | Nginx & AngularJS | Tüm servisler | Ana vitrin, statik içerik ve reverse proxy. |
+| **catalogue** | Node.js | MongoDB | Ürün listeleme, arama ve detay sunumu. |
+| **user** | Node.js | MongoDB | Kullanıcı kaydı, giriş ve oturum yönetimi. |
+| **cart** | Node.js | Redis | Alışveriş sepeti ve anlık ürün miktarları. |
+| **payment** | Python (Flask) | dispatch | Güvenli ödeme onaylama ve fatura kesme. |
+| **shipping** | Java (Spring Boot) | MySQL | Kargo ücreti hesaplama ve şehir rotaları. |
+| **dispatch** | Golang | RabbitMQ | Sipariş sonrası sevkiyat kuyruğu işleme. |
+| **ratings** | PHP | - | Ürün yıldız puanları ve değerlendirmeleri. |
+| **load-gen** | Python (Locust) | web | Sürekli gerçekçi müşteri trafiği üreten robot. |
 
 ---
 
-## 🌟 Neden AWS EKS/ECS ve Merkezi ELK Stack?
+## 🛠️ Modüler Terraform Mimarisi
 
-Modern dağıtık mikroservis mimarilerinde hata ayıklama (troubleshooting) yaparken onlarca pod'un içine tek tek `kubectl logs` ile girmek imkansızdır.
-* **Merkezi Log Havuzu:** Tüm servislerin (MongoDB sorgu hataları, MySQL bağlantı kopmaları, Nginx HTTP 500'leri) tek bir merkezde toplanması gerekir.
-* **JSON Log Zenginleştirme:** Fluent Bit, Docker logunu Kubernetes API'den aldığı namespace, pod_name, container_name ve node_name etiketleriyle zenginleştirir.
-* **Sıfırdan Altyapı Kurma Zahmeti Yok:** Hazır Terraform modülleri sayesinde öğrenci veya mühendis saatlerce konsolda VPC, Subnet, IAM ve EKS ayarlarıyla uğraşmaz; tek komutla üretim standartlarında küme ayağa kalkar.
-
----
-
-## 🚀 Hızlı Başlangıç & Adım Adım Kurulum
-
-### 1. Ön Koşullar
-* AWS CLI (`aws configure` yapılmış, geçerli IAM yetkisi olan)
-* Terraform (v1.5+)
-* `kubectl` (v1.28+)
-
-### 2. AWS Altyapısını Tek Komutla Kurma (Terraform)
-Hiçbir manuel konsol işlemine gerek kalmadan VPC, EKS ve ECS altyapısını başlatın:
-
-```bash
-chmod +x scripts/*.sh
-./scripts/deploy-aws-infra.sh
-```
-
-Bu betik otomatik olarak:
-1. `terraform init` ve `terraform apply -auto-approve` çalıştırır.
-2. VPC, NAT Gateway, Internet Gateway ve EKS kümesini kurar.
-3. Yerel `kubectl` konfigürasyonunuzu yeni kurulan EKS kümesine bağlar.
-
-### 3. Merkezi ELK Loglama Yığınını Dağıtma
-Elasticsearch, Kibana ve Fluent Bit DaemonSet'ini ayağa kaldırın:
-
-```bash
-./scripts/deploy-elk.sh
-```
-
-Loglama namespace'indeki podların hazır olduğunu doğrulayın:
-```bash
-kubectl get pods -n logging
-```
-
-### 4. Robot Shop Mikroservislerini Dağıtma
-Tüm e-ticaret mikroservislerini ve ilişkili veritabanlarını başlatın:
-
-```bash
-./scripts/deploy-robot-shop.sh
-```
-
-Dağıtımı izleyin:
-```bash
-kubectl get pods -n robot-shop -w
-```
-
-### 5. Otomatik Doğrulama ve Sağlık Testi
-Sistemin tüm bileşenlerini test edin:
-
-```bash
-./scripts/validate.sh
-```
-
----
-
-## 🔍 Kibana Üzerinde Log Analizi ve Hata Ayıklama
-
-Kibana arayüzüne erişmek için:
-```bash
-kubectl port-forward svc/kibana -n logging 5601:5601
-```
-Tarayıcınızda `http://localhost:5601` adresine gidin.
-
-### Temel Log Arama Örnekleri (KQL - Kibana Query Language):
-* **HTTP 500 ve Hata Alan Servisler:**
-  ```text
-  log_processed.status >= 500 or log_processed.level: "error"
-  ```
-* **Ödeme (Payment) Servisi Logları:**
-  ```text
-  kubernetes.container_name: "payment"
-  ```
-* **Veritabanı Bağlantı Hataları:**
-  ```text
-  log_processed.message: *connection* and log_processed.level: "error"
-  ```
-
----
-
-## 🛑 Maliyet Yönetimi: Altyapıyı Güvenle Silme
-
-Laboratuvar çalışması bittiğinde AWS faturası oluşmaması için tüm bulut kaynaklarını tek komutla temizleyin:
-
-```bash
-./scripts/destroy-aws-infra.sh
-```
-
-Bu betik `terraform destroy` komutunu çalıştırarak VPC, EKS, NAT Gateway ve ilgili tüm ücretli AWS varlıklarını tamamen siler.
-
----
-
-## 🔧 Dizin Yapısı
+Altyapı, kod tekrarını önleyen ve farklı ortamlara (`dev`, `staging`, `prod`) tek parametreyle dağıtım sağlayan modüler bir yapıdadır:
 
 ```text
-.
-├── terraform/
-│   ├── main.tf                 # Terraform ana konfigürasyon ve provider
-│   ├── vpc.tf                  # Multi-AZ VPC, Subnet ve NAT Gateway
-│   ├── eks.tf                  # Amazon EKS v1.31 & Managed Node Group
-│   ├── ecs.tf                  # Amazon ECS Fargate Task tanımları
-│   ├── variables.tf            # Parametreler (bölge, node tipi, boyut)
-│   ├── outputs.tf              # Kubeconfig ve endpoint çıktıları
-│   └── terraform.tfvars.example# Örnek değişkenler
-├── elk-stack/
-│   ├── 01-elasticsearch.yaml   # Elasticsearch 7.17 StatefulSet & Service
-│   ├── 02-kibana.yaml          # Kibana 7.17 Web UI Deployment
-│   └── 03-fluent-bit.yaml      # Pod log toplayıcı DaemonSet & Parser
-├── K8s/descriptors/            # Robot Shop Kubernetes manifestoları
-├── scripts/
-│   ├── deploy-aws-infra.sh     # Tek tıkla AWS altyapı kurulumu
-│   ├── destroy-aws-infra.sh    # Tek tıkla AWS kaynak silimi
-│   ├── deploy-elk.sh           # ELK Stack kurulum betiği
-│   ├── deploy-robot-shop.sh    # Robot Shop dağıtım betiği
-│   └── validate.sh             # Otomatik doğrulama testi
-└── README.md                   # Üretim seviyesi operasyon kılavuzu
+terraform/
+├── backend.tf                  # Pure S3 Backend (DynamoDB'ye ihtiyaç duymaz)
+├── main.tf                     # Modülleri birleştiren ana orkestrasyon
+├── variables.tf                # Giriş değişkenleri ve varsayılanlar
+├── outputs.tf                  # Küme adı, endpoint ve kubeconfig komutları
+├── environments/
+│   ├── dev.tfvars              # Pluralsight Sandbox (us-east-1, 2x t3.medium, 10.10.0.0/16)
+│   ├── staging.tfvars          # Test Ortamı (us-east-1, 2x t3.medium, 10.20.0.0/16)
+│   └── prod.tfvars             # Üretim Ortamı (us-east-1, 3x t3.medium, 10.30.0.0/16)
+└── modules/
+    ├── vpc/                    # Multi-AZ VPC, Genel/Özel Subnetler, Tek NAT Gateway
+    ├── eks/                    # Standart AWS EKS v1.31 & Managed Node Group
+    ├── ecr/                    # 8 mikroservis için otomatik ECR depoları
+    └── ecs/                    # Opsiyonel AWS ECS Fargate modülü
 ```
 
 ---
 
-## 📞 Destek ve Katkı
-Bu proje DevOps Atölyesi Eğitim Programı kapsamında hazırlanmıştır. Sorularınız için eğitim kanalından veya eğitmeninizle iletişime geçebilirsiniz.
+## 🚀 Adım Adım Kurulum Kılavuzu
+
+### 1. Yöntem: GitHub Actions ile Tek Tıkla Dağıtım (Önerilen)
+
+1. Deponuzun **Settings -> Secrets and variables -> Actions** bölümüne gidin ve şu secret'ları ekleyin:
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+   - *(Opsiyonel)* `AWS_SESSION_TOKEN` (Pluralsight sandbox STS token'ı varsa)
+   - *(Opsiyonel)* `AWS_REGION` (Varsayılan: `us-east-1`)
+2. **Actions** sekmesine gidin ve **"Terraform AWS EKS & ELK Platform CI/CD"** iş akışını seçin.
+3. **Run workflow** butonuna tıklayın:
+   - **Target AWS Environment:** `dev`
+   - **Terraform Execution Action:** `apply`
+   - **Deploy Robot Shop (Helm):** `true`
+   - **Deploy ELK Stack:** `true`
+4. İş akışı; S3 state bucket'ını otomatik oluşturur, EKS kümesini ayağa kaldırır, Helm ile Robot Shop'u ve ELK loglama katmanını deploy eder!
+
+---
+
+### 2. Yöntem: CLI ile Adım Adım Manuel Dağıtım
+
+#### Adım 2.1: Kimlik Bilgilerini Tanımlama
+```bash
+export AWS_ACCESS_KEY_ID="AKIA..."
+export AWS_SECRET_ACCESS_KEY="..."
+export AWS_DEFAULT_REGION="us-east-1"
+```
+
+#### Adım 2.2: Terraform ile EKS Altyapısını Kurma
+```bash
+cd terraform
+
+# 1. Terraform sağlayıcılarını ve S3 backend'i başlatın
+# (Kendi bucket adınızı veya otomatik bucket oluşturmayı kullanabilirsiniz)
+terraform init \
+  -backend-config="bucket=robotshop-tfstate-myaccount-dev" \
+  -backend-config="key=environments/dev/terraform.tfstate" \
+  -backend-config="region=us-east-1"
+
+# 2. Planı inceleyin ve onaylayın
+terraform apply -auto-approve -var-file="environments/dev.tfvars"
+
+# 3. Kubeconfig bağlantısını EKS'e yönlendirin
+aws eks --region us-east-1 update-kubeconfig --name robotshop
+kubectl get nodes
+```
+
+#### Adım 2.3: Instana Robot Shop Uygulamasını Dağıtma (Helm)
+```bash
+helm upgrade --install robot-shop ../K8s/helm/ \
+  --namespace robot-shop \
+  --create-namespace \
+  --wait --timeout 10m
+
+# Yük üreticiyi (Locust) ayağa kaldırın
+kubectl apply -f ../K8s/load-deployment.yaml -n robot-shop
+
+# Pod durumlarını inceleyin
+kubectl -n robot-shop get pods
+```
+
+#### Adım 2.4: Merkezi ELK Stack'i Kurma
+```bash
+# Elasticsearch 7.17, Kibana ve Fluent Bit (CRI Parser) kurulumu
+kubectl apply -f ../elk-stack/
+
+# Podların hazır olmasını bekleyin
+kubectl -n logging rollout status statefulset/elasticsearch --timeout=5m
+kubectl -n logging rollout status deployment/kibana --timeout=5m
+kubectl -n logging get pods
+```
+
+---
+
+## 🔍 Merkezi Log Analizi & Arıza Simülasyonu
+
+Uygulamanın çalıştığını ve logların Elasticsearch'e aktığını doğrulamak için:
+
+1. **Kibana'ya Bağlanın:**
+   ```bash
+   kubectl port-forward svc/kibana 5601:5601 -n logging
+   ```
+   Tarayıcınızda açın: `http://localhost:5601` -> **Management -> Index Patterns** -> `k8s-logs-*` oluşturun.
+
+2. **Kasıtlı Hata Senaryosu Tetikleyin:**
+   ```bash
+   ./scripts/simulate-log-incidents.sh all
+   ```
+   Bu komut MongoDB'yi geçici olarak durdurur, hatalı ödeme istekleri yollar ve MySQL sorgu hataları üretir.
+
+3. **Kibana'da KQL ile Hataları Yakalayın:**
+   ```text
+   kubernetes.namespace_name: "robot-shop" AND (log: "*Error*" OR log: "*timeout*" OR log: "*500*")
+   ```
+
+---
+
+## 🧹 Temizlik & Maliyet Tasarrufu (Teardown)
+
+Pluralsight sandbox süreniz dolmadan veya eğitim tamamlandığında tüm AWS kaynaklarını temizlemek için:
+
+```bash
+# CLI ile:
+./scripts/destroy-aws-infra.sh dev
+
+# veya GitHub Actions üzerinden:
+# action: destroy seçeneğiyle Run workflow çalıştırın.
+```
