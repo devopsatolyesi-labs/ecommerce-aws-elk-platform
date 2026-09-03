@@ -11,7 +11,7 @@ variable "environment" {
 variable "k8s_version" {
   type        = string
   description = "Kubernetes control plane version"
-  default     = "1.31"
+  default     = "1.32"
 }
 
 variable "subnet_ids" {

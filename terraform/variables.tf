@@ -25,7 +25,7 @@ variable "vpc_cidr" {
 variable "k8s_version" {
   description = "Kubernetes control plane version"
   type        = string
-  default     = "1.31"
+  default     = "1.32"
 }
 
 variable "node_instance_types" {

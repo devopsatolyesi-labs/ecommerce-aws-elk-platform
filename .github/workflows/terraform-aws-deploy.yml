@@ -163,7 +163,8 @@ jobs:
           helm upgrade --install robot-shop ../K8s/helm/ \
             --namespace robot-shop \
             --create-namespace \
-            --wait --timeout 10m
+            --timeout 5m
+          sleep 10
           kubectl -n robot-shop get all
 
       - name: Deploy Centralized ELK Stack (Elasticsearch, Kibana, Fluent Bit)
