@@ -1,0 +1,7 @@
+aws_region          = "eu-west-1"
+environment         = "production"
+cluster_name        = "robotshop-eks-cluster"
+vpc_cidr            = "10.0.0.0/16"
+node_instance_types = ["t3.medium"]
+desired_nodes       = 2
+enable_ecs          = true
