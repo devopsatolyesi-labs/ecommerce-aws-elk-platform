@@ -4,6 +4,13 @@ Bu proje, çok katmanlı mikroservis mimarisine ve çeşitli veritabanlarına (M
 
 ---
 
+## 📚 Dokümantasyon & Hızlı Bağlantılar
+
+* 📖 **[Master Kurulum ve Operasyon Kılavuzu (A'dan Z'ye)](docs/FULL_SETUP_AND_OPERATIONS_GUIDE.md)**: AWS Sandbox gereksinimleri, Terraform modülleri, S3 backend, GitHub Actions, Helm ve ELK kurulumu.
+* 🧪 **[Merkezi Log Analizi & Kök Neden Laboratuvarı](docs/LOG_ANALYSIS_LAB.md)**: Kibana KQL sorguları, MongoDB/Payment arıza simülasyonları ve hata ayıklama pratiği.
+
+---
+
 ## 🏛️ Sistem Mimarisi
 
 ```mermaid

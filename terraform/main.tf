@@ -26,7 +26,7 @@ provider "aws" {
   }
 }
 
-# 1. Reusable VPC Module
+# 1. Reusable VPC Module (Multi-AZ Public & Private Subnets)
 module "vpc" {
   source       = "./modules/vpc"
   vpc_cidr     = var.vpc_cidr
@@ -34,7 +34,7 @@ module "vpc" {
   environment  = var.environment
 }
 
-# 2. Reusable EKS Module
+# 2. Reusable EKS Module (Control Plane & Worker Node Groups)
 module "eks" {
   source             = "./modules/eks"
   cluster_name       = var.cluster_name
@@ -47,4 +47,20 @@ module "eks" {
   max_nodes          = var.max_nodes
   min_nodes          = var.min_nodes
   capacity_type      = var.capacity_type
+}
+
+# 3. AWS ECR Container Registries Module (Container Image Repositories)
+module "ecr" {
+  source      = "./modules/ecr"
+  environment = var.environment
+}
+
+# 4. Optional AWS ECS Fargate Module
+module "ecs" {
+  count        = var.enable_ecs ? 1 : 0
+  source       = "./modules/ecs"
+  cluster_name = var.cluster_name
+  environment  = var.environment
+  vpc_id       = module.vpc.vpc_id
+  subnet_ids   = module.vpc.private_subnets
 }

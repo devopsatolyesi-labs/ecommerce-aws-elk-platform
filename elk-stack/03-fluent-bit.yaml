@@ -15,9 +15,9 @@ data:
         Name              tail
         Tag               kube.*
         Path              /var/log/containers/*.log
-        Parser            docker
+        Parser            cri
         DB                /var/log/flb_kube.db
-        Mem_Buf_Limit     5MB
+        Mem_Buf_Limit     10MB
         Skip_Long_Lines   On
         Refresh_Interval  10
 
@@ -50,6 +50,13 @@ data:
         Time_Key    time
         Time_Format %Y-%m-%dT%H:%M:%S.%L
         Time_Keep   On
+
+    [PARSER]
+        Name        cri
+        Format      regex
+        Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<message>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -71,9 +78,11 @@ spec:
       tolerations:
         - key: node-role.kubernetes.io/master
           effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
       containers:
         - name: fluent-bit
-          image: fluent/fluent-bit:2.2.2
+          image: fluent/fluent-bit:3.0.4
           volumeMounts:
             - name: varlog
               mountPath: /var/log
@@ -87,8 +96,8 @@ spec:
               cpu: "50m"
               memory: "64Mi"
             limits:
-              cpu: "200m"
-              memory: "128Mi"
+              cpu: "250m"
+              memory: "256Mi"
       volumes:
         - name: varlog
           hostPath:

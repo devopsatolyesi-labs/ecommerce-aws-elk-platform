@@ -1,20 +1,23 @@
 # ==============================================================================
-# AWS ECS Fargate Module (Alternative/Hybrid Container Orchestration)
+# AWS ECS Fargate Module (Alternative / Hybrid Container Runtime)
 # ==============================================================================
 
-resource "aws_ecs_cluster" "main" {
-  count = var.enable_ecs ? 1 : 0
-  name  = "${var.cluster_name}-ecs"
+resource "aws_ecs_cluster" "this" {
+  name = "${var.cluster_name}-${var.environment}-ecs"
 
   setting {
     name  = "containerInsights"
     value = "enabled"
   }
+
+  tags = {
+    Name        = "${var.cluster_name}-${var.environment}-ecs"
+    Environment = var.environment
+  }
 }
 
 resource "aws_iam_role" "ecs_execution" {
-  count = var.enable_ecs ? 1 : 0
-  name  = "${var.cluster_name}-ecs-execution-role"
+  name = "${var.cluster_name}-${var.environment}-ecs-exec-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -26,16 +29,22 @@ resource "aws_iam_role" "ecs_execution" {
       }
     }]
   })
+
+  tags = {
+    Environment = var.environment
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_execution" {
-  count      = var.enable_ecs ? 1 : 0
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-  role       = aws_iam_role.ecs_execution[0].name
+  role       = aws_iam_role.ecs_execution.name
 }
 
 resource "aws_cloudwatch_log_group" "ecs_logs" {
-  count             = var.enable_ecs ? 1 : 0
-  name              = "/ecs/${var.cluster_name}"
+  name              = "/ecs/${var.cluster_name}-${var.environment}"
   retention_in_days = 7
+
+  tags = {
+    Environment = var.environment
+  }
 }

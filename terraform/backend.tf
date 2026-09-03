@@ -1,10 +1,14 @@
 # ==============================================================================
-# Dynamic Multi-Environment Backend Configuration
-# Usage:
-#   terraform init -backend-config="bucket=my-tf-state-bucket" -backend-config="key=env/dev.tfstate" -backend-config="region=eu-west-1"
+# AWS S3 State Backend (No DynamoDB Required)
+# Uses Amazon S3 for state storage and native S3 lockfiles
 # ==============================================================================
 
 terraform {
-  # Backend is dynamically configured during 'terraform init -backend-config=...'
-  # When running locally or during student labs without S3, can use default local backend.
+  backend "s3" {
+    # Configuration is supplied dynamically via CLI or GitHub Actions:
+    #   terraform init \
+    #     -backend-config="bucket=${S3_BUCKET_NAME}" \
+    #     -backend-config="key=environments/${ENVIRONMENT}/terraform.tfstate" \
+    #     -backend-config="region=${AWS_REGION}"
+  }
 }

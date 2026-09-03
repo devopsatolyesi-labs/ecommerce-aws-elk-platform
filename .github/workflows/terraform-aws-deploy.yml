@@ -1,0 +1,190 @@
+name: "Terraform AWS EKS & ELK Platform CI/CD"
+
+on:
+  pull_request:
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target AWS Environment"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      action:
+        description: "Terraform Execution Action"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      deploy_robotshop:
+        description: "Deploy Robot Shop Microservices (via Helm) after Apply"
+        required: false
+        default: true
+        type: boolean
+      deploy_elk:
+        description: "Deploy Centralized ELK Stack (Elasticsearch, Kibana, Fluent Bit) after Apply"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  validate:
+    name: "Terraform Lint & Validate"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.8.5"
+
+      - name: Check Formatting
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init (Local / Validation mode)
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+  pipeline:
+    name: "AWS Deploy (${{ github.event.inputs.action || 'validation' }} - ${{ github.event.inputs.environment || 'dev' }})"
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.8.5"
+
+      - name: Setup Kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.31.0'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.15.0'
+
+      - name: Configure AWS Credentials (Pluralsight / IAM)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Prepare Dynamic S3 Backend (Pure S3, No DynamoDB)
+        id: s3-setup
+        run: |
+          AWS_REGION="${{ secrets.AWS_REGION || 'us-east-1' }}"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET_NAME="robotshop-tfstate-${ACCOUNT_ID}-${{ inputs.environment }}"
+          echo "Using S3 state bucket: ${BUCKET_NAME}"
+          echo "BUCKET_NAME=${BUCKET_NAME}" >> $GITHUB_ENV
+          echo "AWS_REGION=${AWS_REGION}" >> $GITHUB_ENV
+
+          # Check if bucket exists, create if not
+          if ! aws s3api head-bucket --bucket "${BUCKET_NAME}" 2>/dev/null; then
+            echo "Creating S3 bucket ${BUCKET_NAME} for Terraform State in ${AWS_REGION}..."
+            if [ "${AWS_REGION}" = "us-east-1" ]; then
+              aws s3api create-bucket --bucket "${BUCKET_NAME}" --region "${AWS_REGION}"
+            else
+              aws s3api create-bucket --bucket "${BUCKET_NAME}" --region "${AWS_REGION}" \
+                --create-bucket-configuration LocationConstraint="${AWS_REGION}"
+            fi
+            aws s3api put-bucket-versioning --bucket "${BUCKET_NAME}" --versioning-configuration Status=Enabled
+            aws s3api put-bucket-encryption --bucket "${BUCKET_NAME}" \
+              --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+          else
+            echo "S3 state bucket ${BUCKET_NAME} is ready."
+          fi
+
+      - name: Terraform Init with S3 Backend
+        run: |
+          terraform init \
+            -backend-config="bucket=${BUCKET_NAME}" \
+            -backend-config="key=environments/${{ inputs.environment }}/terraform.tfstate" \
+            -backend-config="region=${AWS_REGION}"
+
+      - name: Terraform Plan
+        if: inputs.action == 'plan'
+        run: |
+          terraform plan \
+            -var-file="environments/${{ inputs.environment }}.tfvars" \
+            -no-color
+
+      - name: Terraform Apply
+        if: inputs.action == 'apply'
+        run: |
+          terraform apply \
+            -auto-approve \
+            -var-file="environments/${{ inputs.environment }}.tfvars"
+
+      - name: Configure Kubeconfig & Inspect Nodes
+        if: inputs.action == 'apply'
+        run: |
+          CLUSTER_NAME=$(terraform output -raw cluster_name)
+          echo "Configuring kubectl for cluster: ${CLUSTER_NAME} in ${AWS_REGION}..."
+          aws eks --region "${AWS_REGION}" update-kubeconfig --name "${CLUSTER_NAME}"
+          kubectl get nodes -o wide
+
+      - name: Deploy Instana Robot Shop Microservices (Helm)
+        if: inputs.action == 'apply' && inputs.deploy_robotshop == true
+        run: |
+          echo "Deploying Robot Shop Helm Chart into EKS..."
+          helm upgrade --install robot-shop ../K8s/helm/ \
+            --namespace robot-shop \
+            --create-namespace \
+            --wait --timeout 10m
+          kubectl -n robot-shop get all
+
+      - name: Deploy Centralized ELK Stack (Elasticsearch, Kibana, Fluent Bit)
+        if: inputs.action == 'apply' && inputs.deploy_elk == true
+        run: |
+          echo "Deploying Centralized ELK Stack (Elasticsearch 7.17, Kibana, Fluent Bit)..."
+          kubectl apply -f ../elk-stack/
+          kubectl -n logging rollout status statefulset/elasticsearch --timeout=5m || true
+          kubectl -n logging rollout status deployment/kibana --timeout=5m || true
+          kubectl -n logging get all
+
+      - name: Terraform Destroy
+        if: inputs.action == 'destroy'
+        run: |
+          echo "Starting teardown of EKS cluster and infrastructure..."
+          # Clean K8s services first to release any AWS ALBs/NLBs
+          CLUSTER_NAME=$(terraform output -raw cluster_name 2>/dev/null || echo "robotshop")
+          aws eks --region "${AWS_REGION}" update-kubeconfig --name "${CLUSTER_NAME}" 2>/dev/null || true
+          helm uninstall robot-shop --namespace robot-shop 2>/dev/null || true
+          kubectl delete -f ../elk-stack/ 2>/dev/null || true
+          
+          terraform destroy \
+            -auto-approve \
+            -var-file="environments/${{ inputs.environment }}.tfvars"

@@ -17,7 +17,7 @@ kubectl apply -f "${ROOT_DIR}/elk-stack/02-kibana.yaml"
 kubectl apply -f "${ROOT_DIR}/elk-stack/03-fluent-bit.yaml"
 
 log_info "Waiting for Elasticsearch readiness..."
-kubectl rollout status deployment/elasticsearch -n logging --timeout=180s
+kubectl rollout status statefulset/elasticsearch -n logging --timeout=180s
 
 log_info "Waiting for Kibana readiness..."
 kubectl rollout status deployment/kibana -n logging --timeout=180s
