@@ -8,8 +8,8 @@ resource "aws_vpc" "this" {
   enable_dns_support   = true
 
   tags = {
-    Name                                                       = "${var.cluster_name}-${var.environment}-vpc"
-    Environment                                                = var.environment
+    Name                                                           = "${var.cluster_name}-${var.environment}-vpc"
+    Environment                                                    = var.environment
     "kubernetes.io/cluster/${var.cluster_name}-${var.environment}" = "shared"
   }
 }
@@ -31,10 +31,10 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name                                                       = "${var.cluster_name}-${var.environment}-public-${data.aws_availability_zones.available.names[count.index]}"
-    Environment                                                = var.environment
+    Name                                                           = "${var.cluster_name}-${var.environment}-public-${data.aws_availability_zones.available.names[count.index]}"
+    Environment                                                    = var.environment
     "kubernetes.io/cluster/${var.cluster_name}-${var.environment}" = "shared"
-    "kubernetes.io/role/elb"                                   = "1"
+    "kubernetes.io/role/elb"                                       = "1"
   }
 }
 
@@ -45,10 +45,10 @@ resource "aws_subnet" "private" {
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
   tags = {
-    Name                                                       = "${var.cluster_name}-${var.environment}-private-${data.aws_availability_zones.available.names[count.index]}"
-    Environment                                                = var.environment
+    Name                                                           = "${var.cluster_name}-${var.environment}-private-${data.aws_availability_zones.available.names[count.index]}"
+    Environment                                                    = var.environment
     "kubernetes.io/cluster/${var.cluster_name}-${var.environment}" = "owned"
-    "kubernetes.io/role/internal-elb"                          = "1"
+    "kubernetes.io/role/internal-elb"                              = "1"
   }
 }
 
