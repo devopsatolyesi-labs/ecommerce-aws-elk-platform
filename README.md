@@ -4,7 +4,7 @@
 
 Bu proje; çok katmanlı, çok dilli (polyglot) mikroservis mimarisine ve çeşitli veritabanlarına (MongoDB, MySQL, Redis, RabbitMQ) sahip **Instana Robot Shop** e-ticaret platformunun AWS bulut ortamında üretim standartlarında ayağa kaldırılmasını sağlar. 
 
-Altyapı; **Terraform Modülleri** ile sıfır hata prensibiyle provizyon edilir, **DynamoDB gerektirmeyen saf S3 State Backend** kullanır, **Pluralsight AWS Sandbox** sınırlarına tam uyum sağlar ve kümedeki tüm konteyner loglarını **Fluent Bit (CRI Parser)** ile toplayıp **Merkezi ELK Stack (Elasticsearch 8.15 & Kibana 8.15)** üzerinde indeksler.
+Altyapı; **Terraform Modülleri** ile sıfır hata prensibiyle provizyon edilir, **DynamoDB gerektirmeyen saf S3 State Backend** kullanır, kurumsal AWS kota ve maliyet optimizasyonlarına tam uyum sağlar ve kümedeki tüm konteyner loglarını **Fluent Bit (CRI Parser)** ile toplayıp **Merkezi ELK Stack (Elasticsearch 8.15 & Kibana 8.15)** üzerinde indeksler.
 
 ---
 
@@ -97,7 +97,7 @@ terraform/
 ├── variables.tf                # Giriş değişkenleri ve varsayılanlar
 ├── outputs.tf                  # Küme adı, endpoint ve kubeconfig komutları
 ├── environments/
-│   ├── dev.tfvars              # Pluralsight Sandbox (us-east-1, 2x t3.medium, 10.10.0.0/16)
+│   ├── dev.tfvars              # Dev Ortamı (us-east-1, 2x t3.medium, 10.10.0.0/16)
 │   ├── staging.tfvars          # Test Ortamı (us-east-1, 2x t3.medium, 10.20.0.0/16)
 │   └── prod.tfvars             # Üretim Ortamı (us-east-1, 3x t3.medium, 10.30.0.0/16)
 └── modules/
@@ -116,7 +116,7 @@ terraform/
 1. Deponuzun **Settings -> Secrets and variables -> Actions** bölümüne gidin ve şu secret'ları ekleyin:
    - `AWS_ACCESS_KEY_ID`
    - `AWS_SECRET_ACCESS_KEY`
-   - *(Opsiyonel)* `AWS_SESSION_TOKEN` (Pluralsight sandbox STS token'ı varsa)
+   - *(Opsiyonel)* `AWS_SESSION_TOKEN` (Geçici STS token kullanılıyorsa)
    - *(Opsiyonel)* `AWS_REGION` (Varsayılan: `us-east-1`)
 2. **Actions** sekmesine gidin ve **"Terraform AWS EKS & ELK Platform CI/CD"** iş akışını seçin.
 3. **Run workflow** butonuna tıklayın:
@@ -208,7 +208,7 @@ Uygulamanın çalıştığını ve logların Elasticsearch'e aktığını doğru
 
 ## 🧹 Temizlik & Maliyet Tasarrufu (Teardown)
 
-Pluralsight sandbox süreniz dolmadan veya eğitim tamamlandığında tüm AWS kaynaklarını temizlemek için:
+Test veya eğitim ortamı tamamlandığında faturanın şişmemesi ve tüm AWS kaynaklarını temizlemek için:
 
 ```bash
 # CLI ile:

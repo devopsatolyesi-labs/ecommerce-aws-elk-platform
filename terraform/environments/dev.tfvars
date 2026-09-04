@@ -1,4 +1,4 @@
-# Development Environment Variables (Pluralsight Sandbox Friendly)
+# Development Environment Variables (AWS Dev Profile - Cost & Resource Optimized)
 aws_region          = "us-east-1"
 environment         = "dev"
 cluster_name        = "robotshop"

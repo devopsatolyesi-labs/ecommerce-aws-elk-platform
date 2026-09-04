@@ -6,7 +6,7 @@ Bu kılavuz; **Instana Robot Shop** çok katmanlı e-ticaret platformunun **AWS 
 
 ## 📑 İçindekiler
 1. [Genel Mimari & Teknoloji Yığını](#1-genel-mimari--teknoloji-yığını)
-2. [Pluralsight AWS Sandbox & Hesap Uyumluluğu](#2-pluralsight-aws-sandbox--hesap-uyumluluğu)
+2. [AWS Bulut Ortamı & Hesap Optimizasyonu](#2-aws-bulut-ortamı--hesap-optimizasyonu)
 3. [Terraform Modüler Yapısı & Çoklu Ortam Yönetimi](#3-terraform-modüler-yapısı--çoklu-ortam-yönetimi)
 4. [S3 State Backend Mimarisi (DynamoDB'siz)](#4-s3-state-backend-mimarisi-dynamodbsiz)
 5. [GitHub Actions CI/CD ile Otomatik Dağıtım](#5-github-actions-cicd-ile-otomatik-dağıtım)
@@ -26,7 +26,7 @@ flowchart TD
         GHA[GitHub Actions CI/CD]
     end
 
-    subgraph AWS_CLOUD [AWS Bulut Ortamı - Pluralsight Sandbox / Üretim]
+    subgraph AWS_CLOUD [AWS Bulut Ortamı - Geliştirme / Üretim]
         S3[(Amazon S3 State Bucket\nrobotshop-tfstate-...)]
 
         subgraph VPC [Multi-AZ AWS VPC 10.x.0.0/16]
@@ -69,12 +69,12 @@ flowchart TD
 
 ---
 
-## ☁️ 2. Pluralsight AWS Sandbox & Hesap Uyumluluğu
+## ☁️ 2. AWS Bulut Ortamı & Hesap Optimizasyonu
 
-Pluralsight Cloud Playground / AWS Sandbox ortamlarının kendine özgü kotaları ve güvenlik sınırları bulunur:
-* **Bölge (Region):** Pluralsight sandbox'ları varsayılan olarak `us-east-1` (N. Virginia) bölgesini kullanır. Projemizdeki tüm şablonlar ve tfvars dosyaları `us-east-1` ile tam uyumludur.
-* **EC2 & Node Boyutu:** Sandbox'lar genellikle `t3.medium` veya `t3.small` örneklerine izin verir. Robot Shop'un 10 mikroservisi ve veritabanları için **2 adet `t3.medium`** seçilmiştir.
-* **NAT Gateway Maliyet Optimizasyonu:** AWS'te her AZ için ayrı NAT Gateway açmak yerine, `modules/vpc` içinde tek bir ortak NAT Gateway oluşturulur. Bu sayede sandbox EIP ve maliyet sınırları aşılmaz.
+Kurumsal ve laboratuvar AWS hesaplarının kota ve maliyet sınırları bulunur:
+* **Bölge (Region):** Projemizdeki tüm şablonlar ve tfvars dosyaları varsayılan olarak `us-east-1` (N. Virginia) bölgesini kullanır ve diğer bölgelere de kolayca uyarlanabilir.
+* **EC2 & Node Boyutu:** Hesap kotalarına uygun olarak `t3.medium` veya `t3.small` örnekleri tercih edilebilir. Robot Shop'un 10 mikroservisi ve veritabanları için **2 adet `t3.medium`** seçilmiştir.
+* **NAT Gateway Maliyet Optimizasyonu:** AWS'te her AZ için ayrı NAT Gateway açmak yerine, `modules/vpc` içinde tek bir ortak NAT Gateway oluşturulur. Bu sayede EIP ve maliyet sınırları aşılmaz.
 * **IAM Rolleri:** EKS kümesi ve node'ları için resmi AWS politikaları (`AmazonEKSClusterPolicy`, `AmazonEKSWorkerNodePolicy`, `AmazonEKS_CNI_Policy`, `AmazonEC2ContainerRegistryReadOnly`) kullanılır.
 
 ---
@@ -238,7 +238,7 @@ Kibana -> **Discover** ekranında Index Pattern olarak `k8s-logs-*` oluşturdukt
 
 ## 🧹 10. Maliyet Optimizasyonu & Küme Temizliği (Teardown)
 
-Eğitim veya deneme bittiğinde faturanın şişmemesi veya Pluralsight sandbox süresinin dolmaması için tek komutla temizlik yapılır:
+Eğitim veya deneme bittiğinde faturanın şişmemesi ve kaynakların gereksiz açık kalmaması için tek komutla temizlik yapılır:
 
 ### GitHub Actions ile Temizlik:
 İş akışında `action: destroy` seçilerek çalıştırılır.
