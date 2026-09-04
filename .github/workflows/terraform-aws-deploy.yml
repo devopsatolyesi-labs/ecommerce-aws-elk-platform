@@ -36,6 +36,11 @@ on:
         required: false
         default: true
         type: boolean
+      deploy_argocd:
+        description: "Deploy Argo CD GitOps Controller after Apply"
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -178,15 +183,31 @@ jobs:
           kubectl -n logging rollout status deployment/kibana --timeout=5m || true
           kubectl -n logging get all
 
+      - name: Deploy Argo CD (GitOps Controller)
+        if: inputs.action == 'apply' && inputs.deploy_argocd == true
+        run: |
+          echo "Deploying official Argo CD GitOps controller into 'argocd' namespace..."
+          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          
+          # Expose Argo CD Web UI via LoadBalancer
+          kubectl -n argocd patch svc argocd-server -p '{"spec": {"type": "LoadBalancer"}}' || true
+          kubectl -n argocd rollout status deployment/argocd-server --timeout=5m || true
+
+          # Apply GitOps Applications (robot-shop and elk-stack)
+          kubectl apply -f ../argocd/ || true
+
       - name: Query & Display Public Load Balancer DNS URLs
         if: inputs.action == 'apply' || inputs.action == 'status'
         run: |
           echo "=== Fetching AWS Load Balancer DNS Hostnames ==="
-          sleep 10
+          sleep 15
           kubectl get svc -A -o wide
 
           WEB_URL=$(kubectl get svc -n robot-shop web -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>/dev/null || echo "")
           KIBANA_URL=$(kubectl get svc -n logging kibana -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>/dev/null || echo "")
+          ARGOCD_URL=$(kubectl get svc -n argocd argocd-server -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>/dev/null || echo "")
+          ARGOCD_PASS=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" 2>/dev/null | base64 -d || echo "N/A")
 
           echo ""
           echo "================================================================================"
@@ -195,6 +216,10 @@ jobs:
           echo "--------------------------------------------------------------------------------"
           echo "📊 KIBANA CENTRALIZED LOGGING DASHBOARD URL:"
           echo "👉 http://${KIBANA_URL}:5601"
+          echo "--------------------------------------------------------------------------------"
+          echo "🐙 ARGO CD GITOPS DASHBOARD URL:"
+          echo "👉 https://${ARGOCD_URL}"
+          echo "🔑 Argo CD Username: admin | Password: ${ARGOCD_PASS}"
           echo "================================================================================"
           echo ""
 
