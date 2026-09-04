@@ -16,60 +16,15 @@ Altyapı; **Terraform Modülleri** ile sıfır hata prensibiyle provizyon edilir
 
 ## 🏛️ Uygulama Mimarisi ve Bileşenler
 
-```mermaid
-flowchart TD
-    subgraph CLIENT [Kullanıcı & Trafik]
-        USERS[Müşteri Tarayıcısı]
-        LOAD[load-gen: Python Locust Yük Üretici]
-    end
+Altyapı; AWS üzerinde çift Kullanılabilirlik Alanında (Multi-AZ) konuşlanan VPC, genel ve özel alt ağlar, tekil NAT Gateway (maliyet optimizasyonu), Kubernetes v1.31 EKS Kümesi ve EC2 Managed Node Group bileşenlerinden oluşur.
 
-    subgraph AWS_INGRESS [Giriş & Yönlendirme Katmanı]
-        IGW[Internet Gateway]
-        ALB[AWS Load Balancer / Nginx Ingress]
-    end
+![AWS EKS & ELK Platform Architecture](docs/images/aws_architecture_diagram.jpg)
 
-    subgraph EKS_CLUSTER [Amazon EKS v1.31 Kümesi]
-        WEB[web: AngularJS Frontend & Nginx Proxy]
-
-        subgraph MICROSERVICES [Mikroservis İş Mantığı]
-            USER[user: Node.js]
-            CAT[catalogue: Node.js]
-            CART[cart: Node.js]
-            PAY[payment: Python Flask]
-            SHIP[shipping: Java Spring Boot]
-            DISP[dispatch: Golang]
-            RAT[ratings: PHP]
-        end
-
-        subgraph DATA_TIER [Veri Katmanı]
-            MDB[(MongoDB\nKullanıcı & Katalog)]
-            RDS[(Redis\nSepet Oturumları)]
-            SQL[(MySQL\nSipariş & Kargo)]
-            RMQ[RabbitMQ\nSevkiyat Mesaj Kuyruğu]
-        end
-
-        subgraph OBSERVABILITY [Gözlemlenebilirlik: ELK Stack]
-            FB[Fluent Bit DaemonSet\nCRI Parser & K8s Enricher]
-            ES[(Elasticsearch 8.15 StatefulSet\nk8s-logs-* İndeksleri)]
-            KIB[Kibana 8.15 Web Dashboard\nPort 5601]
-        end
-    end
-
-    USERS --> IGW --> ALB --> WEB
-    LOAD --> WEB
-    WEB --> USER & CAT & CART & PAY & SHIP & RAT
-    USER --> MDB
-    CAT --> MDB
-    CART --> RDS
-    SHIP --> SQL
-    DISP --> RMQ
-    PAY --> DISP
-
-    %% Log Flow
-    WEB & USER & CAT & CART & PAY & SHIP & DISP & RAT -.->|Stdout/Stderr Logları| FB
-    FB -->|JSON over HTTP 9200| ES
-    ES --> KIB
-```
+### Mimari Katmanlar ve Bileşenler:
+1. **Giriş & Yönlendirme:** İsteğe bağlı Cloudflare DNS & SSL proxy katmanı ve AWS Multi-AZ genel alt ağlarındaki tekil Ingress Gateway (ALB).
+2. **Uygulama & Mikroservis Katmanı:** EKS Özel Alt Ağlarında koşan polyglot mikroservisler (web AngularJS/Nginx, catalogue, cart, user, payment, shipping, dispatch, ratings).
+3. **Veri Katmanı:** Kümeye özel izole veritabanları (MongoDB, Redis, MySQL, RabbitMQ).
+4. **Merkezi Loglama & Observability (ELK):** Fluent Bit (CRI Parser DaemonSet), Elasticsearch 8.15 TSDB ve Kibana 8.15 Dashboard.
 
 ### 🧩 Mikroservis Ekosistemi Özeti:
 | Mikroservis | Teknoloji / Dil | Veritabanı / Bağımlılık | Görevi |
