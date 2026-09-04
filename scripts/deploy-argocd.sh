@@ -12,7 +12,7 @@ log_info "Creating 'argocd' namespace..."
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 
 log_info "Installing official Argo CD manifests..."
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 log_info "Configuring Argo CD Server service as LoadBalancer..."
 kubectl -n argocd patch svc argocd-server -p '{"spec": {"type": "LoadBalancer"}}' || true

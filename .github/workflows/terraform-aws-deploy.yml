@@ -188,7 +188,7 @@ jobs:
         run: |
           echo "Deploying official Argo CD GitOps controller into 'argocd' namespace..."
           kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-          kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
           
           # Expose Argo CD Web UI via LoadBalancer
           kubectl -n argocd patch svc argocd-server -p '{"spec": {"type": "LoadBalancer"}}' || true
