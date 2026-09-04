@@ -177,7 +177,7 @@ jobs:
       - name: Deploy Centralized ELK Stack (Elasticsearch, Kibana, Fluent Bit)
         if: inputs.action == 'apply' && inputs.deploy_elk == true
         run: |
-          echo "Deploying Centralized ELK Stack (Elasticsearch 7.17, Kibana, Fluent Bit)..."
+          echo "Deploying Centralized ELK Stack (Elasticsearch 8.15, Kibana 8.15, Fluent Bit)..."
           kubectl apply -f ../elk-stack/
           kubectl -n logging rollout status statefulset/elasticsearch --timeout=5m || true
           kubectl -n logging rollout status deployment/kibana --timeout=5m || true

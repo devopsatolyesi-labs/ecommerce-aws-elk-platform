@@ -54,8 +54,8 @@ flowchart TD
 
         subgraph LOGGING [Merkezi ELK Stack]
             FB[Fluent Bit DaemonSet\nCRI Parser & K8s Metadata]
-            ES[(Elasticsearch 7.17 StatefulSet)]
-            KIB[Kibana 7.17 Web UI]
+            ES[(Elasticsearch 8.15 StatefulSet)]
+            KIB[Kibana 8.15 Web UI]
         end
     end
 
@@ -194,7 +194,7 @@ Kubernetes v1.31 ve modern EKS düğümleri **containerd (CRI)** kullanır. Flue
 
 1. **Fluent Bit DaemonSet:** Her EKS düğümündeki `/var/log/containers/*.log` dosyasını dinler.
 2. **Kubernetes Filtresi:** Pod adı, namespace, container adı ve host etiketlerini loga ekler.
-3. **Elasticsearch (7.17):** `k8s-logs-*` indeksi altında logları zaman damgasıyla saklar.
+3. **Elasticsearch (8.15):** `k8s-logs-*` indeksi altında logları zaman damgasıyla saklar.
 4. **Kibana:** Port 5601 üzerinden web arayüzü sunar.
 
 Kibana arayüzüne erişim:

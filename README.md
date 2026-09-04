@@ -4,7 +4,7 @@
 
 Bu proje; çok katmanlı, çok dilli (polyglot) mikroservis mimarisine ve çeşitli veritabanlarına (MongoDB, MySQL, Redis, RabbitMQ) sahip **Instana Robot Shop** e-ticaret platformunun AWS bulut ortamında üretim standartlarında ayağa kaldırılmasını sağlar. 
 
-Altyapı; **Terraform Modülleri** ile sıfır hata prensibiyle provizyon edilir, **DynamoDB gerektirmeyen saf S3 State Backend** kullanır, **Pluralsight AWS Sandbox** sınırlarına tam uyum sağlar ve kümedeki tüm konteyner loglarını **Fluent Bit (CRI Parser)** ile toplayıp **Merkezi ELK Stack (Elasticsearch 7.17 & Kibana)** üzerinde indeksler.
+Altyapı; **Terraform Modülleri** ile sıfır hata prensibiyle provizyon edilir, **DynamoDB gerektirmeyen saf S3 State Backend** kullanır, **Pluralsight AWS Sandbox** sınırlarına tam uyum sağlar ve kümedeki tüm konteyner loglarını **Fluent Bit (CRI Parser)** ile toplayıp **Merkezi ELK Stack (Elasticsearch 8.15 & Kibana 8.15)** üzerinde indeksler.
 
 ---
 
@@ -50,8 +50,8 @@ flowchart TD
 
         subgraph OBSERVABILITY [Gözlemlenebilirlik: ELK Stack]
             FB[Fluent Bit DaemonSet\nCRI Parser & K8s Enricher]
-            ES[(Elasticsearch 7.17 StatefulSet\nk8s-logs-* İndeksleri)]
-            KIB[Kibana 7.17 Web Dashboard\nPort 5601]
+            ES[(Elasticsearch 8.15 StatefulSet\nk8s-logs-* İndeksleri)]
+            KIB[Kibana 8.15 Web Dashboard\nPort 5601]
         end
     end
 
@@ -172,7 +172,7 @@ kubectl -n robot-shop get pods
 
 #### Adım 2.4: Merkezi ELK Stack'i Kurma
 ```bash
-# Elasticsearch 7.17, Kibana ve Fluent Bit (CRI Parser) kurulumu
+# Elasticsearch 8.15, Kibana 8.15 ve Fluent Bit (CRI Parser) kurulumu
 kubectl apply -f ../elk-stack/
 
 # Podların hazır olmasını bekleyin
